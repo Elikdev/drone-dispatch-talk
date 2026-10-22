@@ -160,7 +160,7 @@ flowchart TB
             <div class="card"><h3>Battery rule</h3><p class="soft small">Moving to LOADING or LOADED needs at least 25% battery.</p></div>
             <div class="card"><h3>Nothing on board</h3><p class="soft small">A drone can’t be LOADED while it’s empty.</p></div>
           </div>
-          <p class="soft">The allowed moves are in one table in the code. Anything else gets <code>409 INVALID_STATE_TRANSITION</code>, and the error lists the moves you can make.</p>
+          <p class="soft">The allowed moves are in one table in the code. Anything else gets <code>409 CONFLICT</code>, and the error lists the moves you can make.</p>
         </section>
 
         <section class="is-dark" data-background-color="#002443">
@@ -284,8 +284,8 @@ flowchart TB
                 <li>Open Swagger at <code>/docs</code>, add the API key</li>
                 <li>See which drones can load</li>
                 <li>Load one, then send the same request again</li>
-                <li>Load too much: <span class="endpoint" style="font-size: 30px">DRONE_OVERWEIGHT</span></li>
-                <li>Drop the battery to 10%: <span class="endpoint" style="font-size: 30px">BATTERY_TOO_LOW</span></li>
+                <li>Load too much: <span class="endpoint" style="font-size: 30px">422, over the limit</span></li>
+                <li>Drop the battery to 10%: <span class="endpoint" style="font-size: 30px">422, battery too low</span></li>
                 <li>Run the 20-at-once test</li>
               </ol>
               <p class="soft">I have a recording ready in case the network acts up.</p>
