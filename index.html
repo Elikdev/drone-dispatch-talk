@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drone Dispatch Service</title>
+    <meta name="description" content="How I built a drone dispatch API that never overloads a drone, even under parallel requests." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="drone-dark" viewBox="0 0 480 400">
+        <ellipse cx="96" cy="58" rx="80" ry="12" fill="#509FEF" opacity="0.55" />
+        <ellipse cx="384" cy="58" rx="80" ry="12" fill="#509FEF" opacity="0.55" />
+        <rect x="90" y="58" width="12" height="44" rx="4" fill="#E3ECF8" />
+        <rect x="378" y="58" width="12" height="44" rx="4" fill="#E3ECF8" />
+        <path d="M96 100 L200 140 M384 100 L280 140" stroke="#E3ECF8" stroke-width="14" stroke-linecap="round" />
+        <rect x="168" y="118" width="144" height="64" rx="32" fill="#509FEF" />
+        <circle cx="240" cy="150" r="14" fill="#EA9659" />
+        <path d="M205 182 L188 220 M275 182 L292 220" stroke="#E3ECF8" stroke-width="10" stroke-linecap="round" />
+        <path d="M240 182 L240 250" stroke="#E3ECF8" stroke-width="4" stroke-dasharray="8 8" />
+        <rect x="190" y="250" width="100" height="84" rx="12" fill="#F8F8F8" stroke="#E3ECF8" stroke-width="5" />
+        <rect x="232" y="268" width="16" height="48" rx="3" fill="#EA9659" />
+        <rect x="216" y="284" width="48" height="16" rx="3" fill="#EA9659" />
+      </symbol>
+      <symbol id="drone-light" viewBox="0 0 480 400">
+        <ellipse cx="96" cy="58" rx="80" ry="12" fill="#509FEF" opacity="0.5" />
+        <ellipse cx="384" cy="58" rx="80" ry="12" fill="#509FEF" opacity="0.5" />
+        <rect x="90" y="58" width="12" height="44" rx="4" fill="#1B3550" />
+        <rect x="378" y="58" width="12" height="44" rx="4" fill="#1B3550" />
+        <path d="M96 100 L200 140 M384 100 L280 140" stroke="#1B3550" stroke-width="14" stroke-linecap="round" />
+        <rect x="168" y="118" width="144" height="64" rx="32" fill="#002443" />
+        <circle cx="240" cy="150" r="14" fill="#EA9659" />
+        <path d="M240 182 L240 250" stroke="#1B3550" stroke-width="5" stroke-dasharray="8 8" />
+        <rect x="190" y="250" width="100" height="84" rx="12" fill="#FFFFFF" stroke="#1B3550" stroke-width="6" />
+        <rect x="232" y="268" width="16" height="48" rx="3" fill="#EA9659" />
+        <rect x="216" y="284" width="48" height="16" rx="3" fill="#EA9659" />
+      </symbol>
+    </svg>
+
+    <div class="reveal">
+      <div class="slides">
+
+        <section class="is-dark" data-background-color="#002443">
+          <div class="with-art" style="height: 100%">
+            <div>
+              <p class="mono eyebrow" style="text-transform: none">POST /api/v1/drones/:id/load</p>
+              <h1>Drone Dispatch Service</h1>
+              <p class="lead">Moving medicine by drone, without breaking the rules</p>
+              <p style="color: var(--blue); margin-top: 48px">Kolade Odutoye · Backend Engineer</p>
+            </div>
+            <svg viewBox="0 0 480 400" width="460" height="383" role="img" aria-label="A drone carrying a medicine box"><use href="#drone-dark" /></svg>
+          </div>
+          <aside class="notes">
+            Good morning everyone. My name is Kolade, I’m a backend engineer, and thank you for having me.
+
+            Today I’ll walk you through the drone dispatch service I built. I’ll show you what it does, the parts that were actually hard, how I handled each one, and then a short live demo.
+
+            After that, I’m open to any question. So feel free to pick at anything.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <p class="eyebrow">The problem</p>
+          <h2>Lagos traffic vs a drone</h2>
+          <p class="lead">In heavy traffic, a short trip can take hours. A drone just flies over it.</p>
+          <svg viewBox="0 0 1664 260" width="1696" height="265" role="img" aria-label="Cars stuck on a bridge while a drone flies over">
+            <path d="M0 200 Q 208 120 416 200 Q 624 120 832 200 Q 1040 120 1248 200 Q 1456 120 1664 200" fill="none" stroke="#509FEF" stroke-width="6" />
+            <path d="M0 230 H1664" stroke="#1B3550" stroke-width="6" />
+            <g fill="#1B3550"><rect x="30" y="200" width="60" height="26" rx="8" /><rect x="252" y="200" width="60" height="26" rx="8" /><rect x="474" y="200" width="60" height="26" rx="8" /><rect x="622" y="200" width="60" height="26" rx="8" /><rect x="844" y="200" width="60" height="26" rx="8" /><rect x="992" y="200" width="60" height="26" rx="8" /></g>
+            <g fill="#EA9659"><rect x="104" y="200" width="60" height="26" rx="8" /><rect x="400" y="200" width="60" height="26" rx="8" /><rect x="696" y="200" width="60" height="26" rx="8" /><rect x="918" y="200" width="60" height="26" rx="8" /></g>
+            <g fill="#509FEF"><rect x="178" y="200" width="60" height="26" rx="8" /><rect x="326" y="200" width="60" height="26" rx="8" /><rect x="548" y="200" width="60" height="26" rx="8" /><rect x="770" y="200" width="60" height="26" rx="8" /></g>
+            <path d="M620 120 Q 980 10 1330 60" fill="none" stroke="#EA9659" stroke-width="4" stroke-dasharray="14 12" />
+            <use href="#drone-light" x="1330" y="0" width="202" height="168" />
+          </svg>
+          <div class="card dark" style="margin-top: 24px">
+            <p class="eyebrow" style="color: var(--orange)">What I built</p>
+            <p>The backend for a control room that manages up to 10 medicine drones. Talking to the drones themselves was out of scope.</p>
+          </div>
+          <aside class="notes">
+            So let me set the scene. If you’ve ever been stuck in Lagos traffic, you know a trip that should take twenty minutes can take you hours. Now imagine you’re trying to get medicine to someone.
+
+            A drone doesn’t care about any of that. It just flies over.
+
+            So the task was to build the backend for the control room. The people in that room register drones, load them with medicine, check their battery, and see which ones are ready to go.
+
+            Actually talking to the drone over radio was out of scope. My job was the backend, and making sure the rules are never broken.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>What it does</h2>
+          <div class="grid-3">
+            <div class="card"><h3>Register a drone</h3><p class="soft small">It starts IDLE and empty</p><p class="endpoint">POST /drones</p></div>
+            <div class="card"><h3>Drones ready to load</h3><p class="soft small">Enough battery, space left</p><p class="endpoint">GET /drones?available=true</p></div>
+            <div class="card"><h3>Load medicine</h3><p class="soft small">Never over the weight limit</p><p class="endpoint">POST /drones/:id/load</p></div>
+            <div class="card"><h3>What’s on board</h3><p class="soft small">Grouped per medicine</p><p class="endpoint">GET /drones/:id/medications</p></div>
+            <div class="card"><h3>Battery level</h3><p class="soft small">And if it can still load</p><p class="endpoint">GET /drones/:id/battery</p></div>
+            <div class="card"><h3>Battery history</h3><p class="soft small">A job checks every minute</p><p class="endpoint">GET /…/battery/history</p></div>
+          </div>
+          <span class="pill">Bonus: retire a drone and keep its history</span>
+          <aside class="notes">
+            These are the six things the service had to do.
+
+            You can register a drone, see which drones are ready to be loaded, load medicine onto a drone, see what’s on board, check a drone’s battery, and there’s a background job that keeps a history of every drone’s battery.
+
+            I added one extra: retiring a drone. In real life, you don’t just delete a drone that has carried medicine. It’s like a closed bank account. The bank doesn’t delete it, the history stays. So instead of deleting, you retire it.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>Choices I made where it was open</h2>
+          <div class="grid-2">
+            <div class="card"><h3 class="accent">Weight like money</h3><p class="soft small">You send grams. I store whole milligrams. Same idea as keeping money in kobo.</p></div>
+            <div class="card"><h3 class="accent">The edges are allowed</h3><p class="soft small">Exactly 25% battery can load. You can fill a drone to exactly its limit.</p></div>
+            <div class="card"><h3 class="accent">Every trip is a delivery</h3><p class="soft small">Back to IDLE closes it. Nothing is deleted, it stays as history.</p></div>
+            <div class="card"><h3 class="accent">Battery comes from the drone</h3><p class="soft small">A PATCH endpoint stands in for the drone sending its battery level.</p></div>
+          </div>
+          <aside class="notes">
+            Some parts were open, so I made a decision and wrote each one down in the README. Four of them matter most.
+
+            First, I treat weight like money. You send me grams, but I store whole milligrams, the same way we keep money in kobo and not in naira. I’ll show you why in a few slides.
+
+            Second, the edges are allowed. A drone at exactly 25% can still load, and you can fill a drone to exactly its limit.
+
+            Third, every trip is a delivery. When the drone comes back to IDLE, the delivery is closed, but I keep it as history.
+
+            And fourth, since we can’t talk to real drones, there’s an endpoint that stands in for the drone reporting its own battery.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>Change the rules without touching code</h2>
+          <div class="grid-2" style="margin-top: 24px">
+            <table class="compare">
+              <tr><th>Setting</th><th>Default</th></tr>
+              <tr><td><code>FLEET_CAPACITY</code></td><td>10 drones</td></tr>
+              <tr><td><code>MAX_DRONE_WEIGHT_LIMIT_G</code></td><td>500g</td></tr>
+              <tr><td><code>MIN_LOADING_BATTERY_PCT</code></td><td>25%</td></tr>
+              <tr><td><code>BATTERY_CHECK_INTERVAL_MS</code></td><td>every minute</td></tr>
+            </table>
+            <table class="compare">
+              <tr><th>Setting</th><th>Default</th></tr>
+              <tr><td><code>BATTERY_AUDIT_BATCH_SIZE</code></td><td>1,000</td></tr>
+              <tr><td><code>RATE_LIMIT_MAX</code></td><td>100 a minute</td></tr>
+              <tr><td><code>DB_LOCK_TIMEOUT_MS</code></td><td>3 seconds</td></tr>
+              <tr><td><code>IDEMPOTENCY_KEY_TTL_HOURS</code></td><td>24 hours</td></tr>
+            </table>
+          </div>
+          <div class="grid-2">
+            <div class="card"><h3>Checked at startup</h3><p class="soft small">A wrong value stops the app and lists every problem at once.</p></div>
+            <div class="card"><h3>Safe to change</h3><p class="soft small">Rules are checked when you act, so old drones don’t break.</p></div>
+          </div>
+          <aside class="notes">
+            One thing I made sure of: the business can change its rules without a developer touching the code.
+
+            Every limit is a setting. The fleet size, the max weight, the battery minimum, how often the battery job runs, the rate limit, and so on.
+
+            So let’s say we buy bigger drones tomorrow. We change the max weight to 1000 grams, restart the app, and that’s it. No code change, no migration.
+
+            Every setting is also checked when the app starts. If someone mistakenly sets the battery minimum to 150%, the app won’t start, and it tells you exactly what’s wrong. I’d rather it fail at startup than in production.
+
+            And changing a limit doesn’t break old data, because the rules are checked at the moment you act. If the minimum goes from 25 to 30, a drone at 28% just can’t take more load. Nothing else breaks.
+
+            If one day they need to change these without a restart, the next step would be a settings table. I didn’t build that because it wasn’t needed yet.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>One app, split into clear parts</h2>
+          <div class="split">
+            <pre class="mermaid">
+flowchart TB
+  C["Client sends x-api-key"] --> G["Guards: rate limit, then API key"]
+  G --> CT["Controllers: check the input"]
+  CT --> S["Services: the rules, in one transaction"]
+  S --> DB[("PostgreSQL")]
+  J["Battery job, on a timer"] --> DB
+            </pre>
+            <div>
+              <p class="eyebrow">What I used, and why</p>
+              <p class="soft"><b>NestJS + TypeScript.</b> Modules, dependency injection, guards and validation built in. Every feature has the same shape.</p>
+              <p class="soft"><b>PostgreSQL 16.</b> Real transactions, row locks and constraints.</p>
+              <p class="soft"><b>Prisma 7.</b> Typed queries and migrations. Raw SQL only for locks.</p>
+              <p class="soft"><b>Docker + GitHub Actions.</b> One command to run it. Every PR checked.</p>
+            </div>
+          </div>
+          <aside class="notes">
+            This is how it’s put together. It’s one app, split into clear modules: drones, medications, battery and health.
+
+            When a request comes in, it first goes through the rate limit, then the API key check. The controllers only check the input. All the actual rules live in the services, and they run inside one database transaction. On the side, there’s a battery job that runs every minute.
+
+            For the stack, I used NestJS with TypeScript, because it gives me structure out of the box. Modules, dependency injection, guards, validation, all built in. So every feature has the same shape, and anyone joining the team knows exactly where things go.
+
+            Postgres, because I needed real transactions and row locks, and you’ll see why in a minute. And Prisma for typed queries and migrations. I only wrote raw SQL where I needed a lock.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>A drone’s life</h2>
+          <div class="flow">
+            <span class="state">IDLE</span><span class="arrow">→</span>
+            <span class="state">LOADING</span><span class="arrow">→</span>
+            <span class="state">LOADED</span><span class="arrow">→</span>
+            <span class="state">DELIVERING</span><span class="arrow">→</span>
+            <span class="state">DELIVERED</span><span class="arrow">→</span>
+            <span class="state">RETURNING</span>
+          </div>
+          <div class="grid-3">
+            <div class="card"><h3>Back to IDLE</h3><p class="soft small">From RETURNING, or from LOADING to cancel. The delivery closes and the drone is emptied. The history stays.</p></div>
+            <div class="card"><h3>Battery rule</h3><p class="soft small">Moving to LOADING or LOADED needs at least 25% battery.</p></div>
+            <div class="card"><h3>Nothing on board</h3><p class="soft small">A drone can’t be LOADED while it’s empty.</p></div>
+          </div>
+          <p class="soft">The allowed moves are in one table in the code. Anything else gets <code>409 INVALID_STATE_TRANSITION</code>, and the error lists the moves you can make.</p>
+          <aside class="notes">
+            Every drone goes round this cycle. It starts IDLE. While we put medicine on it, it’s LOADING. When it’s ready, it’s LOADED. Then DELIVERING, DELIVERED, and RETURNING on the way back.
+
+            When it gets back to IDLE, the delivery is closed and the drone is empty again, but the delivery stays as history.
+
+            I kept all the allowed moves in one table in the code, not if statements spread everywhere. So it’s easy to read and easy to test. There’s a test for every move that’s allowed, and every move that isn’t.
+          </aside>
+        </section>
+
+        <section class="is-dark" data-background-color="#002443">
+          <div style="margin-top: 180px">
+            <p class="eyebrow">The real work</p>
+            <h1 style="font-size: 88px">Making it work was easy. Making it <span style="color: var(--blue)">safe when things happen at the same time</span> was the real work.</h1>
+            <p class="lead">For every feature, I asked: what breaks?</p>
+          </div>
+          <aside class="notes">
+            Now, honestly, getting it to work was the easy part. Check the weight, save it, done.
+
+            The real work was everything around that. What happens when two requests come in at the same time? What happens when a client retries? What happens when the numbers have decimals?
+
+            So for every feature, I kept asking myself one question: what breaks? The next few slides are my answers.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <p class="eyebrow">Challenge 1</p>
+          <h2>Two loads on one drone, at the same time</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Without a lock</h3>
+              <ol class="soft">
+                <li>A reads 300g. B reads 300g.</li>
+                <li>Both check 300 + 150 = 450. Both pass.</li>
+                <li>Both save. The 500g drone now has <b>600g</b>.</li>
+              </ol>
+            </div>
+            <div class="card dark">
+              <h3 style="color: var(--orange)">With a row lock</h3>
+              <ol style="color: var(--light-soft)">
+                <li>A locks the drone’s row. B waits.</li>
+                <li>A saves 450g.</li>
+                <li>B reads 450g. 450 + 150 = 600. <b>Rejected.</b></li>
+              </ol>
+            </div>
+          </div>
+          <div class="card" style="background: var(--line); border-color: var(--line)">
+            Backup rule in the database: <b>loaded weight can never be more than the limit.</b> Even a bug can’t save an overweight drone.
+          </div>
+          <aside class="notes">
+            This is the one I care about the most.
+
+            Picture two people loading the same drone at the exact same moment. The drone already has 300 grams, and each of them wants to add 150.
+
+            Without a lock, they both read 300. They both check that 450 is under 500. And they both save. Now a 500 gram drone is carrying 600 grams.
+
+            It’s the same thing as two POS terminals debiting one account at the same time. Somebody will call customer care, and it won’t be the engineer.
+
+            So what I did is: inside the transaction, I lock that drone’s row first. The second request has to wait. When it finally gets in, it sees 450, adds 150, gets 600, and it’s rejected. Other drones don’t wait at all, only that one drone.
+
+            And as a backup, the database itself has a rule: the loaded weight can never be more than the limit. So even if there’s a bug in my code someday, the database still won’t save an overweight drone.
+
+            (If asked why not a conditional update like a wallet debit: it’s faster, but it can’t tell you which rule failed, and I check three things here: state, battery and weight.)
+          </aside>
+        </section>
+
+        <section class="is-dark" data-background-color="#002443">
+          <p class="eyebrow">How I proved it</p>
+          <h2>20 loads on one drone, sent at once</h2>
+          <div class="grid-3" style="margin: 24px 0 0">
+            <div><p class="big-number">500g</p><p class="soft">the drone’s limit</p></div>
+            <div><p class="big-number">120g</p><p class="soft">each load adds</p></div>
+            <div><p class="big-number" style="color: var(--orange)">4</p><p class="soft">is the most that can fit</p></div>
+          </div>
+          <div class="requests" role="img" aria-label="20 requests: 4 accepted, 16 rejected">
+            <span class="ok"></span><span class="ok"></span><span class="ok"></span><span class="ok"></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p><b>Every run:</b> 4 accepted, 16 rejected, 480g on board, and the total matches the items.</p>
+          <p class="soft">I picked numbers where the right answer is obvious. Take the lock away and this test fails.</p>
+          <aside class="notes">
+            Now, anybody can say “I handled race conditions”. I wanted to prove it.
+
+            So I wrote a test with numbers where the right answer is obvious. One drone with a 500 gram limit. Every request adds one item of 120 grams. If you do the maths, only 4 can ever fit. That’s 480 grams. A fifth one would make it 600.
+
+            The test sends 20 of those requests at the exact same time.
+
+            If the lock works, exactly 4 get in, 16 get rejected, and the drone ends up at 480 grams. The test also checks that the weight saved on the drone matches the items in the database.
+
+            And if I remove the lock, more than 4 get in and the test fails. That’s how I know the lock is really doing the work.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <p class="eyebrow">Challenge 2</p>
+          <h2>The retry that loads twice</h2>
+          <p class="soft">The client times out. It doesn’t know if the load went through, so it sends it again with the same <code style="color: var(--blue-text)">Idempotency-Key</code>.</p>
+          <div class="grid-3">
+            <div class="card"><h3>Same key, same body</h3><p class="soft small">You get the first answer back. Nothing loads twice.</p></div>
+            <div class="card"><h3>Same key, new body</h3><p class="soft small">Rejected with 409. One key, one request.</p></div>
+            <div class="card"><h3>Both at once</h3><p class="soft small">Postgres makes the second one wait, then gives it the first answer.</p></div>
+          </div>
+          <div class="card dark">
+            <p>The key is saved <b>in the same transaction</b> as the load. That’s why I didn’t use Redis. The key and the load can’t disagree.</p>
+          </div>
+          <aside class="notes">
+            The second problem is retries. In payments, we call this the double debit problem.
+
+            The client sends a load, the network drops, and now it doesn’t know if the load went through. So it sends it again. If we just run it again, the drone gets loaded twice.
+
+            So the load endpoint accepts an Idempotency-Key. It’s just a unique ID the client sends with the request.
+
+            If the same key comes in with the same request, I send back the first answer, and nothing is loaded again. If the same key comes with a different request, that’s a 409, because one key means one request. And if two requests with the same key arrive at the exact same time, Postgres makes the second one wait, and then it gets the first answer. I didn’t need to write any extra locking for that.
+
+            I kept the key in Postgres, in the same transaction as the load, so the key and the load can never disagree. That’s also why I didn’t need Redis.
+
+            Only the load has a key, because the other writes are already safe to repeat. Registering the same drone twice is blocked by the serial number, and setting the battery to 40 twice gives the same result.
+          </aside>
+        </section>
+
+        <section class="is-dark" data-background-color="#002443">
+          <p class="eyebrow">Challenge 3</p>
+          <h2>Decimals don’t add up</h2>
+          <div class="code-block">
+            0.1 + 0.2 = <span class="hit">0.30000000000000004</span><br />
+            1.005 * 1000 = <span class="hit">1004.9999999999999</span>
+          </div>
+          <p class="lead" style="margin-top: 48px; color: var(--light)">So I store whole milligrams, and only use grams at the edge of the API.</p>
+          <p class="soft">Grams come in. I convert once: times 1,000, rounded to a whole number. Anything finer than 1mg is rejected. Every check after that is whole numbers.</p>
+          <aside class="notes">
+            Third problem: decimals. Medicine weights have decimals, like 20.5 grams.
+
+            And in JavaScript, 0.1 plus 0.2 doesn’t give you 0.3. It gives you 0.30000000000000004. The second line surprises a lot of people: 1.005 times 1000 should be 1005, but you get 1004.9999.
+
+            If I stored weights like that, my weight check would be wrong right at the limit, which is exactly where it matters.
+
+            So I did what we do with money: kobo, not naira. Here’s how it works. When a weight comes in, I convert it to milligrams once. I multiply by 1000, and I round to the nearest whole number. So that 1004.9999 becomes 1005, which is what it should be.
+
+            But before I round, I check that the person didn’t send more than three decimal places. If someone sends 12.3456 grams, that’s smaller than one milligram, so I reject it instead of quietly rounding it.
+
+            From there, every sum and every check is on whole numbers, so it’s always exact. I only divide by 1000 again when I send the answer back in grams. So 3 times 20.5 plus 22.5 comes out as exactly 84 grams.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <p class="eyebrow">Challenge 4</p>
+          <h2>When there’s no row to lock</h2>
+          <div class="grid-2">
+            <div class="card"><h3>The fleet of 10</h3><p class="soft">Two sign-ups when we have 9 drones. Both count 9, both get in, now we have 11. There’s no “fleet” row to lock, so I lock a name instead. Postgres calls it an <b>advisory lock</b>.</p></div>
+            <div class="card"><h3>The battery job</h3><p class="soft">One insert writes 1,000 drones at a time. If the last run is still going, it skips. With 3 copies of the app, the same kind of lock lets only one of them write.</p></div>
+          </div>
+          <p class="soft">Battery under 25%? Like a danfo driver on the fuel light. He won’t take you to Ikorodu.</p>
+          <aside class="notes">
+            Sometimes there’s no row to lock.
+
+            The fleet can only have 10 drones. Imagine we have 9, and two people register a drone at the same time. Both count 9, both say there’s space, and now we have 11.
+
+            There’s no “fleet” row I can lock, so I lock a name instead. Postgres calls that an advisory lock. Prisma itself uses the same idea so that two migrations don’t run at once.
+
+            The battery job is similar. Every minute, it writes every drone’s battery level to a history table. It does it in batches of 1000 with one insert each, not one query per drone. If a run is slow, the next one just skips.
+
+            And in production we might run three copies of this app. Without a lock, all three would write the history, so you’d get three times the rows. With the lock, only one of them writes.
+
+            And about the 25% rule: it’s like a danfo driver with the fuel light on. He won’t agree to take you to Ikorodu.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>What I chose not to build</h2>
+          <div class="grid-3">
+            <div class="card"><h3 class="accent">No Redis</h3><p class="soft small">Nothing needs caching. Postgres already holds the locks and the retry keys.</p></div>
+            <div class="card"><h3 class="accent">No queue</h3><p class="soft small">Every request ends in one short transaction. A queue makes sense when real drones send data.</p></div>
+            <div class="card"><h3 class="accent">No microservices</h3><p class="soft small">One small domain, one database. The modules can split later if we need it.</p></div>
+          </div>
+          <div class="card dark">
+            <p class="eyebrow" style="color: var(--orange)">Only 2 rules live in the database</p>
+            <p>Weight never over the limit, and one open delivery per drone. Things that can change, like 500g or 25%, stay in config.</p>
+          </div>
+          <aside class="notes">
+            Knowing what not to build is also part of the job.
+
+            I didn’t add Redis, because nothing here needs caching, and Postgres already holds the locks and the retry keys.
+
+            I didn’t add a queue, because every request finishes in one short transaction. When real drones start sending us data, that’s when a queue makes sense.
+
+            And no microservices for one small domain. It’s split into clean modules, so it can be split later if we ever need to.
+
+            In the database itself, I only put two rules: the weight can never go over the limit, and a drone can only have one open delivery. Things that can change, like the 500 grams or the 25%, stay in config. If I put 500 inside the database and the business wanted 1000 next year, I’d need a migration just to change a number.
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>I’ve met these problems before</h2>
+          <table class="compare">
+            <tr><th>What I built before</th><th>Where it showed up here</th></tr>
+            <tr><td>Debit card management system: cards tracked through stock and delivery (Sterling)</td><td>Drones moving through their states</td></tr>
+            <tr><td>Bulk account statements, processed in batches (Sterling)</td><td>The battery job: batches, not one by one</td></tr>
+            <tr><td>Logging, tracing and alerts (Sterling)</td><td>A request ID on every log line and error</td></tr>
+            <tr><td>Withdrawals on RabbitMQ with retries (Betty Bingo)</td><td>Why a retried load must never count twice</td></tr>
+            <tr><td>Data recovery after the database went down (Betty Bingo)</td><td>Why I keep history and never overwrite it</td></tr>
+          </table>
+          <aside class="notes">
+            None of these problems were new to me, and I think that’s why I spotted them early.
+
+            At Sterling, I built the debit card management system. Cards move through stock and delivery, which is the same shape as drones moving through their states.
+
+            I also worked on our bulk account statements, and made them much faster by processing them in batches instead of one by one. The battery job uses that same idea.
+
+            I did a lot of work on logging, tracing and alerts, so every error in this service carries a request ID you can search for.
+
+            At Betty Bingo, I worked on withdrawals with RabbitMQ and retries, so I know a retry should never pay out twice.
+
+            And I led a data recovery after the database went down. That taught me to keep history and never overwrite it.
+          </aside>
+        </section>
+
+        <section class="is-dark" data-background-color="#002443">
+          <div class="with-art">
+            <div>
+              <p class="eyebrow">Live demo</p>
+              <h2>Let’s try to break it</h2>
+              <ol style="font-size: 34px; margin-top: 24px">
+                <li>Open Swagger at <code>/docs</code>, add the API key</li>
+                <li>See which drones can load</li>
+                <li>Load one, then send the same request again</li>
+                <li>Load too much: <span class="endpoint" style="font-size: 30px">DRONE_OVERWEIGHT</span></li>
+                <li>Drop the battery to 10%: <span class="endpoint" style="font-size: 30px">BATTERY_TOO_LOW</span></li>
+                <li>Run the 20-at-once test</li>
+              </ol>
+              <p class="soft">I have a recording ready in case the network acts up.</p>
+            </div>
+            <svg viewBox="0 0 480 400" width="420" height="350" role="img" aria-label="A drone carrying a medicine box"><use href="#drone-dark" /></svg>
+          </div>
+          <aside class="notes">
+            Okay, now the fun part. Let me try to break it live.
+
+            (Open Swagger at localhost:3000/docs, click Authorize, paste the key.)
+
+            First, let’s see which drones can load right now. You’ll notice the ones under 25% aren’t on the list.
+
+            Now I’ll load this drone. And I’ll send the exact same request again, with the same Idempotency-Key. See this header, idempotent-replayed: true. Nothing was loaded twice.
+
+            Now let’s be greedy and load too much. DRONE_OVERWEIGHT, and it tells you how much is on board, how much you tried to add, and the limit.
+
+            Let me drop the battery to 10%, and try to load again. BATTERY_TOO_LOW.
+
+            And finally, the test that sends 20 loads at once. 4 pass, 16 rejected, 480 grams.
+
+            (If the network misbehaves: “No problem, I recorded this earlier,” and play the recording.)
+          </aside>
+        </section>
+
+        <section data-background-color="#F8F8F8">
+          <h2>Going to production, and what’s next</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3 class="accent">Before production</h3>
+              <ul class="soft">
+                <li>Secrets from a secret manager</li>
+                <li>Migrations once per release, safe for the old version</li>
+                <li>A shared store for the rate limit across instances</li>
+                <li>Logs sent to Grafana Loki</li>
+                <li>Clean up old battery logs on a schedule</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3 class="accent">Next steps</h3>
+              <ul class="soft">
+                <li>Drone data coming in through a queue</li>
+                <li>Cursor pagination for big tables</li>
+                <li>Image upload with pre-signed S3 links</li>
+                <li>User accounts and roles</li>
+                <li>One API key per client</li>
+              </ul>
+            </div>
+          </div>
+          <aside class="notes">
+            If this were going to production tomorrow, here’s what I’d do first.
+
+            The secrets would come from a secret manager, not from env files. Migrations would run once per release, and I’d keep each one safe for the old version while the new one rolls out.
+
+            With more than one copy of the app, the locks already work across all of them. But the rate limit counter lives in memory, so it would need a shared store like Redis. That’s when Redis actually earns its place.
+
+            The logs are already JSON with a request ID, so they’re ready for Grafana Loki. And the battery history grows every minute, so it needs a cleanup schedule.
+
+            After that, the next features would be: real drone data coming in through a queue, cursor pagination for very big tables, image upload, user accounts and roles, and one API key per client instead of one shared key.
+          </aside>
+        </section>
+
+        <section class="is-dark" data-background-color="#002443">
+          <div class="with-art" style="height: 100%">
+            <div>
+              <h1>Thank you. Questions?</h1>
+              <p class="lead">And if anything broke during the demo, I promise it was on purpose.</p>
+              <p class="mono" style="margin-top: 48px; color: var(--orange)">github.com/Elikdev/drone-dispatch-service</p>
+            </div>
+            <svg viewBox="0 0 480 400" width="420" height="350" role="img" aria-label="A drone carrying a medicine box"><use href="#drone-dark" /></svg>
+          </div>
+          <p class="shout-out">Shout-out to Claude for helping me turn all my plans and notes into these slides.</p>
+          <aside class="notes">
+            That’s it from me. Thank you for listening.
+
+            I’m happy to take any question, about the code, the choices I made, or what I’d do differently.
+
+            And if anything broke during the demo, I promise it was on purpose.
+
+            Oh, and before I forget, a quick shout-out to Claude. I poured all my plans and notes into it, and it helped me shape them into these slides.
+          </aside>
+        </section>
+
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
+
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        fontFamily: 'Outfit, Arial, sans-serif',
+        themeVariables: {
+          fontSize: '28px',
+          primaryColor: '#FFFFFF',
+          primaryBorderColor: '#509FEF',
+          primaryTextColor: '#1B3550',
+          lineColor: '#3B4A5E',
+          actorBkg: '#FFFFFF',
+          actorBorder: '#509FEF',
+          signalColor: '#1B3550',
+          signalTextColor: '#1B3550',
+          noteBkgColor: '#F8F8F8',
+        },
+      });
+
+      await document.fonts.ready;
+
+      const blocks = [...document.querySelectorAll('pre.mermaid')];
+      for (const [index, block] of blocks.entries()) {
+        const { svg } = await mermaid.render(`diagram-${index}`, block.textContent);
+        const diagram = document.createElement('div');
+        diagram.className = 'mermaid';
+        diagram.innerHTML = svg;
+        block.replaceWith(diagram);
+      }
+
+      Reveal.initialize({
+        width: 1920,
+        height: 1080,
+        margin: 0,
+        hash: true,
+        center: false,
+        slideNumber: 'c/t',
+        transition: 'fade',
+        plugins: [RevealNotes],
+      });
+    </script>
+  </body>
+</html>
