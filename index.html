@@ -85,7 +85,7 @@
             <div class="card"><h3>Load medicine</h3><p class="soft small">Never over the weight limit</p><p class="endpoint">POST /drones/:id/load</p></div>
             <div class="card"><h3>What’s on board</h3><p class="soft small">Grouped per medicine</p><p class="endpoint">GET /drones/:id/medications</p></div>
             <div class="card"><h3>Battery level</h3><p class="soft small">And if it can still load</p><p class="endpoint">GET /drones/:id/battery</p></div>
-            <div class="card"><h3>Battery history</h3><p class="soft small">A job checks every minute</p><p class="endpoint">GET /…/battery/history</p></div>
+            <div class="card"><h3>Battery history</h3><p class="soft small">A job checks every 10 minutes</p><p class="endpoint">GET /…/battery/history</p></div>
           </div>
           <span class="pill">Bonus: retire a drone and keep its history</span>
         </section>
@@ -108,7 +108,7 @@
               <tr><td><code>FLEET_CAPACITY</code></td><td>10 drones</td></tr>
               <tr><td><code>MAX_DRONE_WEIGHT_LIMIT_G</code></td><td>500g</td></tr>
               <tr><td><code>MIN_LOADING_BATTERY_PCT</code></td><td>25%</td></tr>
-              <tr><td><code>BATTERY_CHECK_INTERVAL_MS</code></td><td>every minute</td></tr>
+              <tr><td><code>BATTERY_CHECK_INTERVAL_MS</code></td><td>every 10 minutes</td></tr>
             </table>
             <table class="compare">
               <tr><th>Setting</th><th>Default</th></tr>
