@@ -56,13 +56,6 @@
             </div>
             <svg viewBox="0 0 480 400" width="460" height="383" role="img" aria-label="A drone carrying a medicine box"><use href="#drone-dark" /></svg>
           </div>
-          <aside class="notes">
-            Good morning everyone. My name is Kolade, I’m a backend engineer, and thank you for having me.
-
-            Today I’ll walk you through the drone dispatch service I built. I’ll show you what it does, the parts that were actually hard, how I handled each one, and then a short live demo.
-
-            After that, I’m open to any question. So feel free to pick at anything.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -82,15 +75,6 @@
             <p class="eyebrow" style="color: var(--orange)">What I built</p>
             <p>The backend for a control room that manages up to 10 medicine drones. Talking to the drones themselves was out of scope.</p>
           </div>
-          <aside class="notes">
-            So let me set the scene. If you’ve ever been stuck in Lagos traffic, you know a trip that should take twenty minutes can take you hours. Now imagine you’re trying to get medicine to someone.
-
-            A drone doesn’t care about any of that. It just flies over.
-
-            So the task was to build the backend for the control room. The people in that room register drones, load them with medicine, check their battery, and see which ones are ready to go.
-
-            Actually talking to the drone over radio was out of scope. My job was the backend, and making sure the rules are never broken.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -104,13 +88,6 @@
             <div class="card"><h3>Battery history</h3><p class="soft small">A job checks every minute</p><p class="endpoint">GET /…/battery/history</p></div>
           </div>
           <span class="pill">Bonus: retire a drone and keep its history</span>
-          <aside class="notes">
-            These are the six things the service had to do.
-
-            You can register a drone, see which drones are ready to be loaded, load medicine onto a drone, see what’s on board, check a drone’s battery, and there’s a background job that keeps a history of every drone’s battery.
-
-            I added one extra: retiring a drone. In real life, you don’t just delete a drone that has carried medicine. It’s like a closed bank account. The bank doesn’t delete it, the history stays. So instead of deleting, you retire it.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -121,17 +98,6 @@
             <div class="card"><h3 class="accent">Every trip is a delivery</h3><p class="soft small">Back to IDLE closes it. Nothing is deleted, it stays as history.</p></div>
             <div class="card"><h3 class="accent">Battery comes from the drone</h3><p class="soft small">A PATCH endpoint stands in for the drone sending its battery level.</p></div>
           </div>
-          <aside class="notes">
-            Some parts were open, so I made a decision and wrote each one down in the README. Four of them matter most.
-
-            First, I treat weight like money. You send me grams, but I store whole milligrams, the same way we keep money in kobo and not in naira. I’ll show you why in a few slides.
-
-            Second, the edges are allowed. A drone at exactly 25% can still load, and you can fill a drone to exactly its limit.
-
-            Third, every trip is a delivery. When the drone comes back to IDLE, the delivery is closed, but I keep it as history.
-
-            And fourth, since we can’t talk to real drones, there’s an endpoint that stands in for the drone reporting its own battery.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -156,19 +122,6 @@
             <div class="card"><h3>Checked at startup</h3><p class="soft small">A wrong value stops the app and lists every problem at once.</p></div>
             <div class="card"><h3>Safe to change</h3><p class="soft small">Rules are checked when you act, so old drones don’t break.</p></div>
           </div>
-          <aside class="notes">
-            One thing I made sure of: the business can change its rules without a developer touching the code.
-
-            Every limit is a setting. The fleet size, the max weight, the battery minimum, how often the battery job runs, the rate limit, and so on.
-
-            So let’s say we buy bigger drones tomorrow. We change the max weight to 1000 grams, restart the app, and that’s it. No code change, no migration.
-
-            Every setting is also checked when the app starts. If someone mistakenly sets the battery minimum to 150%, the app won’t start, and it tells you exactly what’s wrong. I’d rather it fail at startup than in production.
-
-            And changing a limit doesn’t break old data, because the rules are checked at the moment you act. If the minimum goes from 25 to 30, a drone at 28% just can’t take more load. Nothing else breaks.
-
-            If one day they need to change these without a restart, the next step would be a settings table. I didn’t build that because it wasn’t needed yet.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -190,15 +143,6 @@ flowchart TB
               <p class="soft"><b>Docker + GitHub Actions.</b> One command to run it. Every PR checked.</p>
             </div>
           </div>
-          <aside class="notes">
-            This is how it’s put together. It’s one app, split into clear modules: drones, medications, battery and health.
-
-            When a request comes in, it first goes through the rate limit, then the API key check. The controllers only check the input. All the actual rules live in the services, and they run inside one database transaction. On the side, there’s a battery job that runs every minute.
-
-            For the stack, I used NestJS with TypeScript, because it gives me structure out of the box. Modules, dependency injection, guards, validation, all built in. So every feature has the same shape, and anyone joining the team knows exactly where things go.
-
-            Postgres, because I needed real transactions and row locks, and you’ll see why in a minute. And Prisma for typed queries and migrations. I only wrote raw SQL where I needed a lock.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -217,13 +161,6 @@ flowchart TB
             <div class="card"><h3>Nothing on board</h3><p class="soft small">A drone can’t be LOADED while it’s empty.</p></div>
           </div>
           <p class="soft">The allowed moves are in one table in the code. Anything else gets <code>409 INVALID_STATE_TRANSITION</code>, and the error lists the moves you can make.</p>
-          <aside class="notes">
-            Every drone goes round this cycle. It starts IDLE. While we put medicine on it, it’s LOADING. When it’s ready, it’s LOADED. Then DELIVERING, DELIVERED, and RETURNING on the way back.
-
-            When it gets back to IDLE, the delivery is closed and the drone is empty again, but the delivery stays as history.
-
-            I kept all the allowed moves in one table in the code, not if statements spread everywhere. So it’s easy to read and easy to test. There’s a test for every move that’s allowed, and every move that isn’t.
-          </aside>
         </section>
 
         <section class="is-dark" data-background-color="#002443">
@@ -232,13 +169,6 @@ flowchart TB
             <h1 style="font-size: 88px">Making it work was easy. Making it <span style="color: var(--blue)">safe when things happen at the same time</span> was the real work.</h1>
             <p class="lead">For every feature, I asked: what breaks?</p>
           </div>
-          <aside class="notes">
-            Now, honestly, getting it to work was the easy part. Check the weight, save it, done.
-
-            The real work was everything around that. What happens when two requests come in at the same time? What happens when a client retries? What happens when the numbers have decimals?
-
-            So for every feature, I kept asking myself one question: what breaks? The next few slides are my answers.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -265,21 +195,6 @@ flowchart TB
           <div class="card" style="background: var(--line); border-color: var(--line)">
             Backup rule in the database: <b>loaded weight can never be more than the limit.</b> Even a bug can’t save an overweight drone.
           </div>
-          <aside class="notes">
-            This is the one I care about the most.
-
-            Picture two people loading the same drone at the exact same moment. The drone already has 300 grams, and each of them wants to add 150.
-
-            Without a lock, they both read 300. They both check that 450 is under 500. And they both save. Now a 500 gram drone is carrying 600 grams.
-
-            It’s the same thing as two POS terminals debiting one account at the same time. Somebody will call customer care, and it won’t be the engineer.
-
-            So what I did is: inside the transaction, I lock that drone’s row first. The second request has to wait. When it finally gets in, it sees 450, adds 150, gets 600, and it’s rejected. Other drones don’t wait at all, only that one drone.
-
-            And as a backup, the database itself has a rule: the loaded weight can never be more than the limit. So even if there’s a bug in my code someday, the database still won’t save an overweight drone.
-
-            (If asked why not a conditional update like a wallet debit: it’s faster, but it can’t tell you which rule failed, and I check three things here: state, battery and weight.)
-          </aside>
         </section>
 
         <section class="is-dark" data-background-color="#002443">
@@ -297,17 +212,6 @@ flowchart TB
           </div>
           <p><b>Every run:</b> 4 accepted, 16 rejected, 480g on board, and the total matches the items.</p>
           <p class="soft">I picked numbers where the right answer is obvious. Take the lock away and this test fails.</p>
-          <aside class="notes">
-            Now, anybody can say “I handled race conditions”. I wanted to prove it.
-
-            So I wrote a test with numbers where the right answer is obvious. One drone with a 500 gram limit. Every request adds one item of 120 grams. If you do the maths, only 4 can ever fit. That’s 480 grams. A fifth one would make it 600.
-
-            The test sends 20 of those requests at the exact same time.
-
-            If the lock works, exactly 4 get in, 16 get rejected, and the drone ends up at 480 grams. The test also checks that the weight saved on the drone matches the items in the database.
-
-            And if I remove the lock, more than 4 get in and the test fails. That’s how I know the lock is really doing the work.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -322,19 +226,6 @@ flowchart TB
           <div class="card dark">
             <p>The key is saved <b>in the same transaction</b> as the load. That’s why I didn’t use Redis. The key and the load can’t disagree.</p>
           </div>
-          <aside class="notes">
-            The second problem is retries. In payments, we call this the double debit problem.
-
-            The client sends a load, the network drops, and now it doesn’t know if the load went through. So it sends it again. If we just run it again, the drone gets loaded twice.
-
-            So the load endpoint accepts an Idempotency-Key. It’s just a unique ID the client sends with the request.
-
-            If the same key comes in with the same request, I send back the first answer, and nothing is loaded again. If the same key comes with a different request, that’s a 409, because one key means one request. And if two requests with the same key arrive at the exact same time, Postgres makes the second one wait, and then it gets the first answer. I didn’t need to write any extra locking for that.
-
-            I kept the key in Postgres, in the same transaction as the load, so the key and the load can never disagree. That’s also why I didn’t need Redis.
-
-            Only the load has a key, because the other writes are already safe to repeat. Registering the same drone twice is blocked by the serial number, and setting the battery to 40 twice gives the same result.
-          </aside>
         </section>
 
         <section class="is-dark" data-background-color="#002443">
@@ -346,19 +237,6 @@ flowchart TB
           </div>
           <p class="lead" style="margin-top: 48px; color: var(--light)">So I store whole milligrams, and only use grams at the edge of the API.</p>
           <p class="soft">Grams come in. I convert once: times 1,000, rounded to a whole number. Anything finer than 1mg is rejected. Every check after that is whole numbers.</p>
-          <aside class="notes">
-            Third problem: decimals. Medicine weights have decimals, like 20.5 grams.
-
-            And in JavaScript, 0.1 plus 0.2 doesn’t give you 0.3. It gives you 0.30000000000000004. The second line surprises a lot of people: 1.005 times 1000 should be 1005, but you get 1004.9999.
-
-            If I stored weights like that, my weight check would be wrong right at the limit, which is exactly where it matters.
-
-            So I did what we do with money: kobo, not naira. Here’s how it works. When a weight comes in, I convert it to milligrams once. I multiply by 1000, and I round to the nearest whole number. So that 1004.9999 becomes 1005, which is what it should be.
-
-            But before I round, I check that the person didn’t send more than three decimal places. If someone sends 12.3456 grams, that’s smaller than one milligram, so I reject it instead of quietly rounding it.
-
-            From there, every sum and every check is on whole numbers, so it’s always exact. I only divide by 1000 again when I send the answer back in grams. So 3 times 20.5 plus 22.5 comes out as exactly 84 grams.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -369,19 +247,6 @@ flowchart TB
             <div class="card"><h3>The battery job</h3><p class="soft">One insert writes 1,000 drones at a time. If the last run is still going, it skips. With 3 copies of the app, the same kind of lock lets only one of them write.</p></div>
           </div>
           <p class="soft">Battery under 25%? Like a danfo driver on the fuel light. He won’t take you to Ikorodu.</p>
-          <aside class="notes">
-            Sometimes there’s no row to lock.
-
-            The fleet can only have 10 drones. Imagine we have 9, and two people register a drone at the same time. Both count 9, both say there’s space, and now we have 11.
-
-            There’s no “fleet” row I can lock, so I lock a name instead. Postgres calls that an advisory lock. Prisma itself uses the same idea so that two migrations don’t run at once.
-
-            The battery job is similar. Every minute, it writes every drone’s battery level to a history table. It does it in batches of 1000 with one insert each, not one query per drone. If a run is slow, the next one just skips.
-
-            And in production we might run three copies of this app. Without a lock, all three would write the history, so you’d get three times the rows. With the lock, only one of them writes.
-
-            And about the 25% rule: it’s like a danfo driver with the fuel light on. He won’t agree to take you to Ikorodu.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -395,17 +260,6 @@ flowchart TB
             <p class="eyebrow" style="color: var(--orange)">Only 2 rules live in the database</p>
             <p>Weight never over the limit, and one open delivery per drone. Things that can change, like 500g or 25%, stay in config.</p>
           </div>
-          <aside class="notes">
-            Knowing what not to build is also part of the job.
-
-            I didn’t add Redis, because nothing here needs caching, and Postgres already holds the locks and the retry keys.
-
-            I didn’t add a queue, because every request finishes in one short transaction. When real drones start sending us data, that’s when a queue makes sense.
-
-            And no microservices for one small domain. It’s split into clean modules, so it can be split later if we ever need to.
-
-            In the database itself, I only put two rules: the weight can never go over the limit, and a drone can only have one open delivery. Things that can change, like the 500 grams or the 25%, stay in config. If I put 500 inside the database and the business wanted 1000 next year, I’d need a migration just to change a number.
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -418,19 +272,6 @@ flowchart TB
             <tr><td>Withdrawals on RabbitMQ with retries (Betty Bingo)</td><td>Why a retried load must never count twice</td></tr>
             <tr><td>Data recovery after the database went down (Betty Bingo)</td><td>Why I keep history and never overwrite it</td></tr>
           </table>
-          <aside class="notes">
-            None of these problems were new to me, and I think that’s why I spotted them early.
-
-            At Sterling, I built the debit card management system. Cards move through stock and delivery, which is the same shape as drones moving through their states.
-
-            I also worked on our bulk account statements, and made them much faster by processing them in batches instead of one by one. The battery job uses that same idea.
-
-            I did a lot of work on logging, tracing and alerts, so every error in this service carries a request ID you can search for.
-
-            At Betty Bingo, I worked on withdrawals with RabbitMQ and retries, so I know a retry should never pay out twice.
-
-            And I led a data recovery after the database went down. That taught me to keep history and never overwrite it.
-          </aside>
         </section>
 
         <section class="is-dark" data-background-color="#002443">
@@ -450,23 +291,6 @@ flowchart TB
             </div>
             <svg viewBox="0 0 480 400" width="420" height="350" role="img" aria-label="A drone carrying a medicine box"><use href="#drone-dark" /></svg>
           </div>
-          <aside class="notes">
-            Okay, now the fun part. Let me try to break it live.
-
-            (Open Swagger at localhost:3000/docs, click Authorize, paste the key.)
-
-            First, let’s see which drones can load right now. You’ll notice the ones under 25% aren’t on the list.
-
-            Now I’ll load this drone. And I’ll send the exact same request again, with the same Idempotency-Key. See this header, idempotent-replayed: true. Nothing was loaded twice.
-
-            Now let’s be greedy and load too much. DRONE_OVERWEIGHT, and it tells you how much is on board, how much you tried to add, and the limit.
-
-            Let me drop the battery to 10%, and try to load again. BATTERY_TOO_LOW.
-
-            And finally, the test that sends 20 loads at once. 4 pass, 16 rejected, 480 grams.
-
-            (If the network misbehaves: “No problem, I recorded this earlier,” and play the recording.)
-          </aside>
         </section>
 
         <section data-background-color="#F8F8F8">
@@ -493,17 +317,6 @@ flowchart TB
               </ul>
             </div>
           </div>
-          <aside class="notes">
-            If this were going to production tomorrow, here’s what I’d do first.
-
-            The secrets would come from a secret manager, not from env files. Migrations would run once per release, and I’d keep each one safe for the old version while the new one rolls out.
-
-            With more than one copy of the app, the locks already work across all of them. But the rate limit counter lives in memory, so it would need a shared store like Redis. That’s when Redis actually earns its place.
-
-            The logs are already JSON with a request ID, so they’re ready for Grafana Loki. And the battery history grows every minute, so it needs a cleanup schedule.
-
-            After that, the next features would be: real drone data coming in through a queue, cursor pagination for very big tables, image upload, user accounts and roles, and one API key per client instead of one shared key.
-          </aside>
         </section>
 
         <section class="is-dark" data-background-color="#002443">
@@ -516,22 +329,12 @@ flowchart TB
             <svg viewBox="0 0 480 400" width="420" height="350" role="img" aria-label="A drone carrying a medicine box"><use href="#drone-dark" /></svg>
           </div>
           <p class="shout-out">Shout-out to Claude for helping me turn all my plans and notes into these slides.</p>
-          <aside class="notes">
-            That’s it from me. Thank you for listening.
-
-            I’m happy to take any question, about the code, the choices I made, or what I’d do differently.
-
-            And if anything broke during the demo, I promise it was on purpose.
-
-            Oh, and before I forget, a quick shout-out to Claude. I poured all my plans and notes into it, and it helped me shape them into these slides.
-          </aside>
         </section>
 
       </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
     <script type="module">
       import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
 
@@ -572,7 +375,6 @@ flowchart TB
         center: false,
         slideNumber: 'c/t',
         transition: 'fade',
-        plugins: [RevealNotes],
       });
     </script>
   </body>

@@ -7,7 +7,6 @@ Live: https://elikdev.github.io/drone-dispatch-talk/
 ## Presenting
 
 - Arrow keys or space to move between slides
-- `S` opens the speaker view with notes and a timer
 - `F` goes full screen, `Esc` shows all slides
 
 ## Export to PDF
