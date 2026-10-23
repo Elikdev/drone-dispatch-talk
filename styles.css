@@ -171,15 +171,30 @@ body {
   align-items: center;
 }
 
-.mermaid {
+.stack {
   display: flex;
-  justify-content: center;
-  margin: 16px 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.mermaid svg {
-  width: 100%;
-  max-height: 620px;
+.stack .layer {
+  font-size: 28px;
+  background: var(--card);
+  border: 2px solid var(--blue);
+  border-radius: 12px;
+  padding: 18px 28px;
+}
+
+.stack .layer.is-db {
+  background: #002443;
+  border-color: #002443;
+  color: #f8f8f8;
+}
+
+.stack .down {
+  font-size: 32px;
+  color: var(--blue);
+  text-align: center;
 }
 
 table.compare {

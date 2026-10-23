@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=2" />
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -127,14 +127,17 @@
         <section data-background-color="#F8F8F8">
           <h2>One app, split into clear parts</h2>
           <div class="split">
-            <pre class="mermaid">
-flowchart TB
-  C["Client sends x-api-key"] --> G["Guards: rate limit, then API key"]
-  G --> CT["Controllers: check the input"]
-  CT --> S["Services: the rules, in one transaction"]
-  S --> DB[("PostgreSQL")]
-  J["Battery job, on a timer"] --> DB
-            </pre>
+            <div class="stack">
+              <div class="layer"><b>Client</b> sends <code>x-api-key</code></div>
+              <div class="down">↓</div>
+              <div class="layer"><b>Guards:</b> rate limit, then API key</div>
+              <div class="down">↓</div>
+              <div class="layer"><b>Controllers:</b> check the input</div>
+              <div class="down">↓</div>
+              <div class="layer"><b>Services:</b> the rules, in one transaction</div>
+              <div class="down">↓</div>
+              <div class="layer is-db"><b>PostgreSQL</b> + a battery job on a timer</div>
+            </div>
             <div>
               <p class="eyebrow">What I used, and why</p>
               <p class="soft"><b>NestJS + TypeScript.</b> Modules, dependency injection, guards and validation built in. Every feature has the same shape.</p>
@@ -336,38 +339,7 @@ flowchart TB
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
-    <script type="module">
-      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
-
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: 'base',
-        fontFamily: 'Outfit, Arial, sans-serif',
-        themeVariables: {
-          fontSize: '28px',
-          primaryColor: '#FFFFFF',
-          primaryBorderColor: '#509FEF',
-          primaryTextColor: '#1B3550',
-          lineColor: '#3B4A5E',
-          actorBkg: '#FFFFFF',
-          actorBorder: '#509FEF',
-          signalColor: '#1B3550',
-          signalTextColor: '#1B3550',
-          noteBkgColor: '#F8F8F8',
-        },
-      });
-
-      await document.fonts.ready;
-
-      const blocks = [...document.querySelectorAll('pre.mermaid')];
-      for (const [index, block] of blocks.entries()) {
-        const { svg } = await mermaid.render(`diagram-${index}`, block.textContent);
-        const diagram = document.createElement('div');
-        diagram.className = 'mermaid';
-        diagram.innerHTML = svg;
-        block.replaceWith(diagram);
-      }
-
+    <script>
       Reveal.initialize({
         width: 1920,
         height: 1080,
@@ -376,6 +348,7 @@ flowchart TB
         center: false,
         slideNumber: 'c/t',
         transition: 'fade',
+        scrollActivationWidth: null,
       });
     </script>
   </body>

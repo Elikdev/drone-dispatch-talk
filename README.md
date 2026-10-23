@@ -22,4 +22,4 @@ python3 -m http.server 8080
 
 Then open http://localhost:8080.
 
-Built with [reveal.js](https://revealjs.com) and [Mermaid](https://mermaid.js.org).
+Built with [reveal.js](https://revealjs.com).
